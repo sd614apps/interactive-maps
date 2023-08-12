@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map App</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            width: 100%;
+            /* Set the height to take up the remaining space available in the viewport */
+            height: calc(100vh - 140px);
+        }
+
+        #input-container {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>My Interactive Map App</h1>
+    <div id="input-container">
+        <input type="text" id="place-name" placeholder="Enter a place name" />
+        <button onclick="fetchCoordinates()">Plot Place</button>
+        <button onclick="clearAllMarkers()">Clear All Markers</button>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        const map = L.map('map').setView([51.505, -0.09], 2); // Initial position and zoom level
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Global variable to hold markers for easy removal
+        let markers = [];
+
+        // Function to load markers from localStorage on page load
+        function loadMarkersFromLocalStorage() {
+            const savedMarkers = JSON.parse(localStorage.getItem('markers') || '[]');
+            savedMarkers.forEach(markerData => {
+                const latLon = [markerData.lat, markerData.lon];
+                const marker = L.marker(latLon).addTo(map)
+                    .bindPopup('<b>' + markerData.placeName + '</b> <button onclick="removeMarker(\'' + markerData.placeName + '\')">Remove</button>')
+                    .openPopup();
+                markers.push({ name: markerData.placeName, marker: marker });
+            });
+        }
+
+        // Function to remove a specific marker
+        function removeMarker(placeName) {
+            const markerData = markers.find(m => m.name === placeName);
+            if (markerData) {
+                map.removeLayer(markerData.marker);
+                markers = markers.filter(m => m.name !== placeName);
+                
+                // Update localStorage
+                const savedMarkers = JSON.parse(localStorage.getItem('markers') || '[]');
+                const updatedMarkers = savedMarkers.filter(m => m.placeName !== placeName);
+                localStorage.setItem('markers', JSON.stringify(updatedMarkers));
+            }
+        }
+
+        // Function to clear all markers
+        function clearAllMarkers() {
+            markers.forEach(m => map.removeLayer(m.marker));
+            markers = [];
+            localStorage.removeItem('markers');
+        }
+
+        function fetchCoordinates() {
+            const placeName = document.getElementById('place-name').value;
+            $.ajax({
+                url: 'http://127.0.0.1:5000/get-coordinates',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ "place_name": placeName }),
+                success: function (data) {
+                    if (data.lat && data.lon) {
+                        const latLon = [data.lat, data.lon];
+                        const marker = L.marker(latLon).addTo(map)
+                            .bindPopup('<b>' + placeName + '</b> <button onclick="removeMarker(\'' + placeName + '\')">Remove</button>')
+                            .openPopup();
+                        markers.push({ name: placeName, marker: marker });
+
+                        // Save to localStorage
+                        const savedMarkers = JSON.parse(localStorage.getItem('markers') || '[]');
+                        savedMarkers.push({ placeName: placeName, lat: data.lat, lon: data.lon });
+                        localStorage.setItem('markers', JSON.stringify(savedMarkers));
+                    }
+                },
+                error: function (error) {
+                    alert('Failed to fetch coordinates');
+                }
+            });
+        }
+
+        // Load markers from localStorage when the page loads
+        loadMarkersFromLocalStorage();
+    </script>
+</body>
+
+</html>
