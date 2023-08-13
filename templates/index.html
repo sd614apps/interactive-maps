@@ -37,6 +37,20 @@
             maxZoom: 19,
         }).addTo(map);
 
+        function setMapViewToMidpoint() {
+            if (markers.length === 0) {
+                map.setView([51.505, -0.09], 2);  // If no markers, set to default view
+                return;
+            }
+
+            const bounds = new L.LatLngBounds();
+            markers.forEach(m => {
+                bounds.extend(m.marker.getLatLng());
+            });
+
+            map.fitBounds(bounds);
+        }
+
         // Global variable to hold markers for easy removal
         let markers = [];
 
@@ -47,8 +61,12 @@
                 const latLon = [markerData.lat, markerData.lon];
                 const marker = L.marker(latLon).addTo(map)
                     .bindPopup('<b>' + markerData.placeName + '</b> <button onclick="removeMarker(\'' + markerData.placeName + '\')">Remove</button>')
+                    .bindTooltip(markerData.placeName) // Binding tooltip here
                     .openPopup();
                 markers.push({ name: markerData.placeName, marker: marker });
+
+                // Call the function to update map view
+                setMapViewToMidpoint();
             });
         }
 
@@ -63,6 +81,9 @@
                 const savedMarkers = JSON.parse(localStorage.getItem('markers') || '[]');
                 const updatedMarkers = savedMarkers.filter(m => m.placeName !== placeName);
                 localStorage.setItem('markers', JSON.stringify(updatedMarkers));
+
+                // Call the function to update map view
+                setMapViewToMidpoint();
             }
         }
 
@@ -71,10 +92,21 @@
             markers.forEach(m => map.removeLayer(m.marker));
             markers = [];
             localStorage.removeItem('markers');
+
+            // Call the function to update map view
+            setMapViewToMidpoint();
         }
 
         function fetchCoordinates() {
             const placeName = document.getElementById('place-name').value;
+            
+            // Check if marker already exists for this place
+            const existingMarkerData = markers.find(m => m.name.toLowerCase() === placeName.toLowerCase());
+            if (existingMarkerData) {
+                alert('Marker for this place already exists.');
+                return;
+            }
+
             $.ajax({
                 url: 'http://127.0.0.1:5000/get-coordinates',
                 type: 'POST',
@@ -85,6 +117,7 @@
                         const latLon = [data.lat, data.lon];
                         const marker = L.marker(latLon).addTo(map)
                             .bindPopup('<b>' + placeName + '</b> <button onclick="removeMarker(\'' + placeName + '\')">Remove</button>')
+                            .bindTooltip(placeName) // Binding tooltip here
                             .openPopup();
                         markers.push({ name: placeName, marker: marker });
 
@@ -92,6 +125,9 @@
                         const savedMarkers = JSON.parse(localStorage.getItem('markers') || '[]');
                         savedMarkers.push({ placeName: placeName, lat: data.lat, lon: data.lon });
                         localStorage.setItem('markers', JSON.stringify(savedMarkers));
+                        
+                        // Update map view
+                        setMapViewToMidpoint();
                     }
                 },
                 error: function (error) {
